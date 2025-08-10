@@ -89,6 +89,8 @@ type EditorComponent interface {
 	SetValueWithAttachments(value string)
 	SetInterruptKeyInDebounce(inDebounce bool)
 	SetExitKeyInDebounce(inDebounce bool)
+	SetCursorPosition(pos int)
+	CursorDown()
 	RestoreFromHistory(index int)
 }
 
@@ -121,6 +123,12 @@ func (m *editorComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
 	case tea.KeyPressMsg:
+		// Debug: log key events to understand terminal differences
+		keyString := msg.String()
+		// if keyString == "enter" || keyString == "shift+enter" || keyString == "ctrl+j" || keyString == "ctrl+m" {
+			slog.Debug("Key event received", "key", keyString, "text", msg.Text, "type", fmt.Sprintf("%T", msg))
+		// }
+		
 		// Handle up/down arrows and ctrl+p/ctrl+n for history navigation
 		switch msg.String() {
 		case "up", "ctrl+p":
@@ -567,13 +575,7 @@ func (m *editorComponent) Submit() (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 
-	if len(value) > 0 && value[len(value)-1] == '\\' {
-		// If the last character is a backslash, remove it and add a newline
-		backslashCol := m.textarea.CurrentRowLength() - 1
-		m.textarea.ReplaceRange(backslashCol, backslashCol+1, "")
-		m.textarea.InsertString("\n")
-		return m, nil
-	}
+
 
 	var cmds []tea.Cmd
 	attachments := m.textarea.GetAttachments()
@@ -691,6 +693,73 @@ func (m *editorComponent) SetValueWithAttachments(value string) {
 
 func (m *editorComponent) SetExitKeyInDebounce(inDebounce bool) {
 	m.exitKeyInDebounce = inDebounce
+}
+
+func (m *editorComponent) SetCursorPosition(pos int) {
+	value := m.textarea.Value()
+	slog.Debug("SetCursorPosition called", "pos", pos, "valueLen", len(value), "value", value)
+	
+	if pos < 0 || pos > len(value) {
+		return
+	}
+	
+	// Calculate row and column from absolute position
+	lines := strings.Split(value, "\n")
+	currentPos := 0
+	targetRow := 0
+	targetCol := 0
+	
+	for row, line := range lines {
+		lineLen := len(line)
+		
+		if row < len(lines)-1 {
+			// For lines that have a newline after them, check if position is within the line content
+			if pos >= currentPos && pos < currentPos + lineLen {
+				// Position is within this line's content
+				targetRow = row
+				targetCol = pos - currentPos
+				break
+			} else if pos == currentPos + lineLen {
+				// Position is exactly at the newline character - move to next line start
+				targetRow = row + 1
+				targetCol = 0
+				break
+			}
+			currentPos += lineLen + 1 // +1 for the \n character
+		} else {
+			// Last line - no newline after it
+			if pos >= currentPos && pos <= currentPos + lineLen {
+				targetRow = row
+				targetCol = pos - currentPos
+				break
+			}
+		}
+	}
+	
+	slog.Debug("SetCursorPosition calculated", "targetRow", targetRow, "targetCol", targetCol, "lines", lines)
+	
+	// Move to the target row
+	currentRow := m.textarea.Line()
+	for currentRow < targetRow {
+		m.textarea.CursorDown()
+		currentRow++
+	}
+	for currentRow > targetRow {
+		m.textarea.CursorUp()  
+		currentRow--
+	}
+	
+	// Set the column
+	m.textarea.SetCursorColumn(targetCol)
+	
+	// Debug: check final position
+	finalRow := m.textarea.Line()
+	finalCol := m.textarea.CursorColumn()
+	slog.Debug("SetCursorPosition result", "finalRow", finalRow, "finalCol", finalCol)
+}
+
+func (m *editorComponent) CursorDown() {
+	m.textarea.CursorDown()
 }
 
 func (m *editorComponent) getInterruptKeyText() string {

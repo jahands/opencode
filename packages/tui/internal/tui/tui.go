@@ -110,6 +110,9 @@ func (a Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		keyString := msg.String()
+		
+		// Debug: log all key events at TUI level
+		slog.Debug("TUI key event", "key", keyString, "text", msg.Text, "type", fmt.Sprintf("%T", msg))
 
 		if a.app.CurrentPermission.ID != "" {
 			if keyString == "enter" || keyString == "esc" || keyString == "a" {
@@ -1147,9 +1150,55 @@ func (a Model) executeCommand(command commands.Command) (tea.Model, tea.Cmd) {
 		a.editor = updated.(chat.EditorComponent)
 		cmds = append(cmds, cmd)
 	case commands.InputSubmitCommand:
-		updated, cmd := a.editor.Submit()
-		a.editor = updated.(chat.EditorComponent)
-		cmds = append(cmds, cmd)
+		// Check if this is a backslash continuation (Shift+Enter workaround)
+		rawValue := a.editor.Value()
+		
+		// Check if there's a backslash at the end OR if the text contains a backslash
+		// (Claude Code keybinding inserts backslash at cursor position, then sends enter)
+		hasBackslash := false
+		backslashPos := -1
+		
+		// First check if backslash is at the end (original behavior)
+		if len(rawValue) > 0 && rawValue[len(rawValue)-1] == '\\' {
+			hasBackslash = true
+			backslashPos = len(rawValue) - 1
+		} else {
+			// Check if there's a standalone backslash (Claude Code behavior)
+			// Look for a backslash that was just inserted
+			for i, char := range rawValue {
+				if char == '\\' {
+					// Check if this backslash looks like it was just inserted for continuation
+					// (simple heuristic: isolated backslash or backslash followed by non-backslash)
+					if i == len(rawValue)-1 || (i < len(rawValue)-1 && rawValue[i+1] != '\\') {
+						hasBackslash = true
+						backslashPos = i
+						break
+					}
+				}
+			}
+		}
+		
+		slog.Debug("InputSubmitCommand", "rawValue", rawValue, "hasBackslash", hasBackslash, "backslashPos", backslashPos)
+		
+		if hasBackslash {
+			// Replace the backslash with a newline instead of submitting
+			slog.Debug("Converting backslash to newline at TUI level", "backslashPos", backslashPos)
+			
+			// Replace the backslash with a newline character
+			textBefore := rawValue[:backslashPos]
+			textAfter := rawValue[backslashPos+1:] // Skip the backslash
+			finalText := textBefore + "\n" + textAfter
+			a.editor.SetValue(finalText)
+			
+			// Set cursor to just after the newline (where the original cursor was)
+			cursorPos := backslashPos + 1
+			slog.Debug("Setting cursor after newline", "cursorPos", cursorPos, "finalText", finalText)
+			a.editor.SetCursorPosition(cursorPos)
+		} else {
+			updated, cmd := a.editor.Submit()
+			a.editor = updated.(chat.EditorComponent)
+			cmds = append(cmds, cmd)
+		}
 	case commands.InputNewlineCommand:
 		updated, cmd := a.editor.Newline()
 		a.editor = updated.(chat.EditorComponent)
