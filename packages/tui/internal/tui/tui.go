@@ -75,6 +75,7 @@ type Model struct {
 	toastManager         *toast.ToastManager
 	interruptKeyState    InterruptKeyState
 	exitKeyState         ExitKeyState
+	lastKeyPressed       string // Track last key for sequence detection
 	messagesRight        bool
 	fileViewer           fileviewer.Model
 }
@@ -111,7 +112,38 @@ func (a Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		keyString := msg.String()
 		
-
+		// Detect Shift+Enter sequence: backslash followed by enter
+		if a.lastKeyPressed == "\\" && keyString == "enter" {
+			slog.Debug("Detected Shift+Enter sequence", "lastKey", a.lastKeyPressed, "currentKey", keyString)
+			
+			// Remove the backslash that was just added and replace with newline
+			currentValue := a.editor.Value()
+			
+			// Find the last backslash in the text (Cursor can insert it anywhere)
+			lastBackslashPos := strings.LastIndex(currentValue, "\\")
+			if lastBackslashPos != -1 {
+				// Remove the backslash and add newline
+				newValue := currentValue[:lastBackslashPos] + "\n" + currentValue[lastBackslashPos+1:]
+				a.editor.SetValue(newValue)
+				// Position cursor after the newline
+				a.editor.SetCursorPosition(lastBackslashPos + 1)
+				slog.Debug("Removed backslash and added newline", "oldValue", currentValue, "newValue", newValue, "backslashPos", lastBackslashPos)
+			} else {
+				// Fallback: just add newline without removing anything
+				slog.Debug("Backslash not found anywhere, falling back to newline command")
+				a.lastKeyPressed = "" // Reset to avoid repeat processing
+				return a, util.CmdHandler(commands.ExecuteCommandMsg(a.app.Commands[commands.InputNewlineCommand]))
+			}
+			
+			a.lastKeyPressed = "" // Reset to avoid repeat processing
+			return a, nil
+		}
+		
+		// Update last key pressed (but skip if we just processed a sequence)
+		if !(a.lastKeyPressed == "\\" && keyString == "enter") {
+			a.lastKeyPressed = keyString
+		}
+		
 
 		if a.app.CurrentPermission.ID != "" {
 			if keyString == "enter" || keyString == "esc" || keyString == "a" {
@@ -1149,51 +1181,9 @@ func (a Model) executeCommand(command commands.Command) (tea.Model, tea.Cmd) {
 		a.editor = updated.(chat.EditorComponent)
 		cmds = append(cmds, cmd)
 	case commands.InputSubmitCommand:
-		// Check if this is a backslash continuation (Shift+Enter workaround)
-		rawValue := a.editor.Value()
-		slog.Debug("InputSubmitCommand", "rawValue", rawValue, "len", len(rawValue))
-		
-		// Check for backslashes that indicate Shift+Enter
-		// Look for backslashes at the end of text or end of lines (where Cursor places them)
-		hasBackslash := false
-		backslashPos := -1
-		
-		// Strategy: Look for backslashes that are at the end of the entire text,
-		// or at the end of any line (before a newline)
-		for i := len(rawValue) - 1; i >= 0; i-- {
-			if rawValue[i] == '\\' {
-				isAtEnd := i == len(rawValue) - 1
-				isAtLineEnd := i < len(rawValue) - 1 && rawValue[i+1] == '\n'
-				
-				if isAtEnd || isAtLineEnd {
-					hasBackslash = true
-					backslashPos = i
-					slog.Debug("Found backslash at line/text end", "pos", backslashPos, "isAtEnd", isAtEnd, "isAtLineEnd", isAtLineEnd)
-					break
-				}
-			}
-		}
-		
-		if hasBackslash {
-			// Replace the backslash with a newline instead of submitting
-			textBefore := rawValue[:backslashPos]
-			textAfter := rawValue[backslashPos+1:] // Skip the backslash
-			finalText := textBefore + "\n" + textAfter
-			
-			slog.Debug("Processing backslash", "textBefore", textBefore, "textAfter", textAfter, "finalText", finalText)
-			
-			// Use proper Bubble Tea pattern: set value and position cursor
-			a.editor.SetValue(finalText)
-			a.editor.SetCursorPosition(backslashPos + 1)
-			
-			// Don't submit - we've handled the Shift+Enter
-			return a, nil
-		} else {
-			slog.Debug("No backslash found, submitting normally")
-			updated, cmd := a.editor.Submit()
-			a.editor = updated.(chat.EditorComponent)
-			cmds = append(cmds, cmd)
-		}
+		updated, cmd := a.editor.Submit()
+		a.editor = updated.(chat.EditorComponent)
+		cmds = append(cmds, cmd)
 	case commands.InputNewlineCommand:
 		updated, cmd := a.editor.Newline()
 		a.editor = updated.(chat.EditorComponent)
