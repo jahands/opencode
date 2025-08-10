@@ -113,6 +113,11 @@ func (a Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		
 		// Debug: log all key events at TUI level
 		slog.Debug("TUI key event", "key", keyString, "text", msg.Text, "type", fmt.Sprintf("%T", msg))
+		
+		// Special debug for enter/backslash keys
+		if keyString == "enter" || keyString == "\\" {
+			slog.Debug("Special key processing", "key", keyString, "willCheckCommands", true)
+		}
 
 		if a.app.CurrentPermission.ID != "" {
 			if keyString == "enter" || keyString == "esc" || keyString == "a" {
@@ -1163,18 +1168,14 @@ func (a Model) executeCommand(command commands.Command) (tea.Model, tea.Cmd) {
 			hasBackslash = true
 			backslashPos = len(rawValue) - 1
 		} else {
-			// Check if there's a standalone backslash (Claude Code behavior)
-			// Look for a backslash that was just inserted
-			for i, char := range rawValue {
-				if char == '\\' {
-					// Check if this backslash looks like it was just inserted for continuation
-					// (simple heuristic: isolated backslash or backslash followed by non-backslash)
-					if i == len(rawValue)-1 || (i < len(rawValue)-1 && rawValue[i+1] != '\\') {
-						hasBackslash = true
-						backslashPos = i
-						break
-					}
-				}
+			// Check if there's a backslash that was just inserted (Claude Code behavior)
+			// Only consider backslashes that are likely from Shift+Enter, not regular text
+			lastBackslashPos := strings.LastIndex(rawValue, "\\")
+			if lastBackslashPos != -1 {
+				// Only process if it's a "fresh" backslash that looks like it was just added for continuation
+				// Simple heuristic: last backslash in the text
+				hasBackslash = true
+				backslashPos = lastBackslashPos
 			}
 		}
 		
@@ -1188,11 +1189,17 @@ func (a Model) executeCommand(command commands.Command) (tea.Model, tea.Cmd) {
 			textBefore := rawValue[:backslashPos]
 			textAfter := rawValue[backslashPos+1:] // Skip the backslash
 			finalText := textBefore + "\n" + textAfter
+			
+			slog.Debug("Text transformation", "before", rawValue, "textBefore", textBefore, "textAfter", textAfter, "finalText", finalText)
 			a.editor.SetValue(finalText)
+			
+			// Verify the value was actually set
+			actualValue := a.editor.Value()
+			slog.Debug("After SetValue", "expected", finalText, "actual", actualValue, "match", finalText == actualValue)
 			
 			// Set cursor to just after the newline (where the original cursor was)
 			cursorPos := backslashPos + 1
-			slog.Debug("Setting cursor after newline", "cursorPos", cursorPos, "finalText", finalText)
+			slog.Debug("Setting cursor after newline", "cursorPos", cursorPos)
 			a.editor.SetCursorPosition(cursorPos)
 		} else {
 			updated, cmd := a.editor.Submit()
