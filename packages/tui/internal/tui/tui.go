@@ -1151,35 +1151,36 @@ func (a Model) executeCommand(command commands.Command) (tea.Model, tea.Cmd) {
 	case commands.InputSubmitCommand:
 		// Check if this is a backslash continuation (Shift+Enter workaround)
 		rawValue := a.editor.Value()
+		slog.Debug("InputSubmitCommand", "rawValue", rawValue, "len", len(rawValue))
 		
-		// Check if there's a backslash at the end OR if the text contains a backslash
-		// (Claude Code keybinding inserts backslash at cursor position, then sends enter)
+		// Check for backslashes that indicate Shift+Enter
+		// Look for backslashes at the end of text or end of lines (where Cursor places them)
 		hasBackslash := false
 		backslashPos := -1
 		
-		// First check if backslash is at the end (original behavior)
-		if len(rawValue) > 0 && rawValue[len(rawValue)-1] == '\\' {
-			hasBackslash = true
-			backslashPos = len(rawValue) - 1
-		} else {
-			// Check if there's a backslash that was just inserted (Claude Code behavior)
-			// Only consider backslashes that are likely from Shift+Enter, not regular text
-			lastBackslashPos := strings.LastIndex(rawValue, "\\")
-			if lastBackslashPos != -1 {
-				// Only process if it's a "fresh" backslash that looks like it was just added for continuation
-				// Simple heuristic: last backslash in the text
-				hasBackslash = true
-				backslashPos = lastBackslashPos
+		// Strategy: Look for backslashes that are at the end of the entire text,
+		// or at the end of any line (before a newline)
+		for i := len(rawValue) - 1; i >= 0; i-- {
+			if rawValue[i] == '\\' {
+				isAtEnd := i == len(rawValue) - 1
+				isAtLineEnd := i < len(rawValue) - 1 && rawValue[i+1] == '\n'
+				
+				if isAtEnd || isAtLineEnd {
+					hasBackslash = true
+					backslashPos = i
+					slog.Debug("Found backslash at line/text end", "pos", backslashPos, "isAtEnd", isAtEnd, "isAtLineEnd", isAtLineEnd)
+					break
+				}
 			}
 		}
-		
-
 		
 		if hasBackslash {
 			// Replace the backslash with a newline instead of submitting
 			textBefore := rawValue[:backslashPos]
 			textAfter := rawValue[backslashPos+1:] // Skip the backslash
 			finalText := textBefore + "\n" + textAfter
+			
+			slog.Debug("Processing backslash", "textBefore", textBefore, "textAfter", textAfter, "finalText", finalText)
 			
 			// Use proper Bubble Tea pattern: set value and position cursor
 			a.editor.SetValue(finalText)
@@ -1188,6 +1189,7 @@ func (a Model) executeCommand(command commands.Command) (tea.Model, tea.Cmd) {
 			// Don't submit - we've handled the Shift+Enter
 			return a, nil
 		} else {
+			slog.Debug("No backslash found, submitting normally")
 			updated, cmd := a.editor.Submit()
 			a.editor = updated.(chat.EditorComponent)
 			cmds = append(cmds, cmd)
