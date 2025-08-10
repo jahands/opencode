@@ -134,9 +134,6 @@ func (a Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				newValue := currentValue[:backslashPos] + "\n" + currentValue[backslashPos+1:]
 				a.editor.SetValue(newValue)
 				a.editor.SetCursorPosition(backslashPos)
-			} else {
-				a.lastKeyPressed = ""
-				return a, util.CmdHandler(commands.ExecuteCommandMsg(a.app.Commands[commands.InputNewlineCommand]))
 			}
 
 			a.lastKeyPressed = ""
