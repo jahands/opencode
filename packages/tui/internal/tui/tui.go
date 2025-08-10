@@ -123,8 +123,8 @@ func (a Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Remove the backslash and add newline
 				newValue := currentValue[:lastBackslashPos] + "\n" + currentValue[lastBackslashPos+1:]
 				a.editor.SetValue(newValue)
-				// Position cursor right after the newline (where backslash was + 1 for the newline)
-				a.editor.SetCursorPosition(lastBackslashPos + 1)
+				// Position cursor at the newline index - SetCursorPosition will move to start of next line
+				a.editor.SetCursorPosition(lastBackslashPos)
 			} else {
 				// Fallback: just add newline without removing anything
 				a.lastKeyPressed = "" // Reset to avoid repeat processing
