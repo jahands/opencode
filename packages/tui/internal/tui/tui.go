@@ -111,12 +111,14 @@ func (a Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		keyString := msg.String()
-		
+
+		// handle shift+enter in VS Code/Cursor/etc. which typically sends: \\r\n
 		if a.lastKeyPressed == "\\" && keyString == "enter" {
 			currentValue := a.editor.Value()
 			currentRow := a.editor.Line()
 			currentCol := a.editor.CursorColumn()
 
+			// Convert row/column cursor position to absolute character position
 			lines := strings.Split(currentValue, "\n")
 			cursorPos := 0
 			for i := 0; i < currentRow && i < len(lines); i++ {
@@ -126,6 +128,7 @@ func (a Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cursorPos += currentCol
 			}
 
+			// Replace the just-inserted backslash with newline
 			backslashPos := cursorPos - 1
 			if backslashPos >= 0 && backslashPos < len(currentValue) && currentValue[backslashPos] == '\\' {
 				newValue := currentValue[:backslashPos] + "\n" + currentValue[backslashPos+1:]
