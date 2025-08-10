@@ -114,8 +114,6 @@ func (a Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		
 		// Detect Shift+Enter sequence: backslash followed by enter
 		if a.lastKeyPressed == "\\" && keyString == "enter" {
-			slog.Debug("Detected Shift+Enter sequence", "lastKey", a.lastKeyPressed, "currentKey", keyString)
-			
 			// Remove the backslash that was just added and replace with newline
 			currentValue := a.editor.Value()
 			
@@ -125,12 +123,10 @@ func (a Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Remove the backslash and add newline
 				newValue := currentValue[:lastBackslashPos] + "\n" + currentValue[lastBackslashPos+1:]
 				a.editor.SetValue(newValue)
-				// Position cursor after the newline
+				// Position cursor right after the newline (where backslash was + 1 for the newline)
 				a.editor.SetCursorPosition(lastBackslashPos + 1)
-				slog.Debug("Removed backslash and added newline", "oldValue", currentValue, "newValue", newValue, "backslashPos", lastBackslashPos)
 			} else {
 				// Fallback: just add newline without removing anything
-				slog.Debug("Backslash not found anywhere, falling back to newline command")
 				a.lastKeyPressed = "" // Reset to avoid repeat processing
 				return a, util.CmdHandler(commands.ExecuteCommandMsg(a.app.Commands[commands.InputNewlineCommand]))
 			}
