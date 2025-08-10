@@ -125,8 +125,6 @@ func (m *editorComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
 	case tea.KeyPressMsg:
-
-		
 		// Handle up/down arrows and ctrl+p/ctrl+n for history navigation
 		switch msg.String() {
 		case "up", "ctrl+p":
@@ -573,8 +571,6 @@ func (m *editorComponent) Submit() (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 
-
-
 	var cmds []tea.Cmd
 	attachments := m.textarea.GetAttachments()
 
@@ -695,65 +691,50 @@ func (m *editorComponent) SetExitKeyInDebounce(inDebounce bool) {
 
 func (m *editorComponent) SetCursorPosition(pos int) {
 	value := m.textarea.Value()
-	slog.Debug("SetCursorPosition called", "pos", pos, "valueLen", len(value), "value", value)
-	
 	if pos < 0 || pos > len(value) {
 		return
 	}
-	
-	// Calculate row and column from absolute position
+
 	lines := strings.Split(value, "\n")
 	currentPos := 0
 	targetRow := 0
 	targetCol := 0
-	
+
 	for row, line := range lines {
 		lineLen := len(line)
-		
+
 		if row < len(lines)-1 {
-			// For lines that have a newline after them, check if position is within the line content
-			if pos >= currentPos && pos < currentPos + lineLen {
-				// Position is within this line's content
+			if pos >= currentPos && pos < currentPos+lineLen {
 				targetRow = row
 				targetCol = pos - currentPos
 				break
-			} else if pos == currentPos + lineLen {
-				// Position is exactly at the newline character - move to next line start
+			}
+			if pos == currentPos+lineLen {
 				targetRow = row + 1
 				targetCol = 0
 				break
 			}
-			currentPos += lineLen + 1 // +1 for the \n character
+			currentPos += lineLen + 1
 		} else {
-			// Last line - no newline after it
-			if pos >= currentPos && pos <= currentPos + lineLen {
+			if pos >= currentPos && pos <= currentPos+lineLen {
 				targetRow = row
 				targetCol = pos - currentPos
 				break
 			}
 		}
 	}
-	
-	slog.Debug("SetCursorPosition calculated", "targetRow", targetRow, "targetCol", targetCol, "lines", lines)
-	
-	// Move to the target row
+
 	currentRow := m.textarea.Line()
 	for currentRow < targetRow {
 		m.textarea.CursorDown()
 		currentRow++
 	}
 	for currentRow > targetRow {
-		m.textarea.CursorUp()  
+		m.textarea.CursorUp()
 		currentRow--
 	}
-	
-	// Set the column
+
 	m.textarea.SetCursorColumn(targetCol)
-	
-	// Debug: check final position
-	finalRow := m.textarea.Line()
-	finalCol := m.textarea.CursorColumn()
-	slog.Debug("SetCursorPosition result", "finalRow", finalRow, "finalCol", finalCol)
 }
 
 func (m *editorComponent) CursorDown() {
