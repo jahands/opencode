@@ -138,9 +138,8 @@ func (a Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			a.lastKeyPressed = ""
 			return a, nil
-		}
-
-		if !(a.lastKeyPressed == "\\" && keyString == "enter") {
+		} else {
+			// not used below, so it's safe to go ahead and update it
 			a.lastKeyPressed = keyString
 		}
 
