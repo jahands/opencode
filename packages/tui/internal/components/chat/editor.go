@@ -123,11 +123,7 @@ func (m *editorComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
 	case tea.KeyPressMsg:
-		// Debug: log key events to understand terminal differences
-		keyString := msg.String()
-		// if keyString == "enter" || keyString == "shift+enter" || keyString == "ctrl+j" || keyString == "ctrl+m" {
-			slog.Debug("Key event received", "key", keyString, "text", msg.Text, "type", fmt.Sprintf("%T", msg))
-		// }
+
 		
 		// Handle up/down arrows and ctrl+p/ctrl+n for history navigation
 		switch msg.String() {

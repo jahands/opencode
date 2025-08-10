@@ -111,13 +111,7 @@ func (a Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		keyString := msg.String()
 		
-		// Debug: log all key events at TUI level
-		slog.Debug("TUI key event", "key", keyString, "text", msg.Text, "type", fmt.Sprintf("%T", msg))
-		
-		// Special debug for enter/backslash keys
-		if keyString == "enter" || keyString == "\\" {
-			slog.Debug("Special key processing", "key", keyString, "willCheckCommands", true)
-		}
+
 
 		if a.app.CurrentPermission.ID != "" {
 			if keyString == "enter" || keyString == "esc" || keyString == "a" {
@@ -1179,28 +1173,20 @@ func (a Model) executeCommand(command commands.Command) (tea.Model, tea.Cmd) {
 			}
 		}
 		
-		slog.Debug("InputSubmitCommand", "rawValue", rawValue, "hasBackslash", hasBackslash, "backslashPos", backslashPos)
+
 		
 		if hasBackslash {
 			// Replace the backslash with a newline instead of submitting
-			slog.Debug("Converting backslash to newline at TUI level", "backslashPos", backslashPos)
-			
-			// Replace the backslash with a newline character
 			textBefore := rawValue[:backslashPos]
 			textAfter := rawValue[backslashPos+1:] // Skip the backslash
 			finalText := textBefore + "\n" + textAfter
 			
-			slog.Debug("Text transformation", "before", rawValue, "textBefore", textBefore, "textAfter", textAfter, "finalText", finalText)
+			// Use proper Bubble Tea pattern: set value and position cursor
 			a.editor.SetValue(finalText)
+			a.editor.SetCursorPosition(backslashPos + 1)
 			
-			// Verify the value was actually set
-			actualValue := a.editor.Value()
-			slog.Debug("After SetValue", "expected", finalText, "actual", actualValue, "match", finalText == actualValue)
-			
-			// Set cursor to just after the newline (where the original cursor was)
-			cursorPos := backslashPos + 1
-			slog.Debug("Setting cursor after newline", "cursorPos", cursorPos)
-			a.editor.SetCursorPosition(cursorPos)
+			// Don't submit - we've handled the Shift+Enter
+			return a, nil
 		} else {
 			updated, cmd := a.editor.Submit()
 			a.editor = updated.(chat.EditorComponent)
