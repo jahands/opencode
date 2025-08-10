@@ -91,6 +91,8 @@ type EditorComponent interface {
 	SetExitKeyInDebounce(inDebounce bool)
 	SetCursorPosition(pos int)
 	CursorDown()
+	Line() int
+	CursorColumn() int
 	RestoreFromHistory(index int)
 }
 
@@ -756,6 +758,14 @@ func (m *editorComponent) SetCursorPosition(pos int) {
 
 func (m *editorComponent) CursorDown() {
 	m.textarea.CursorDown()
+}
+
+func (m *editorComponent) Line() int {
+	return m.textarea.Line()
+}
+
+func (m *editorComponent) CursorColumn() int {
+	return m.textarea.CursorColumn()
 }
 
 func (m *editorComponent) getInterruptKeyText() string {

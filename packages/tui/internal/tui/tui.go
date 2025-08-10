@@ -117,14 +117,38 @@ func (a Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Remove the backslash that was just added and replace with newline
 			currentValue := a.editor.Value()
 			
-			// Find the last backslash in the text (Cursor can insert it anywhere)
-			lastBackslashPos := strings.LastIndex(currentValue, "\\")
-			if lastBackslashPos != -1 {
+			// Get current cursor position to find the backslash that was just inserted
+			currentRow := a.editor.Line()
+			currentCol := a.editor.CursorColumn()
+			slog.Debug("Cursor info", "row", currentRow, "col", currentCol)
+			
+			// Calculate absolute cursor position
+			lines := strings.Split(currentValue, "\n")
+			cursorPos := 0
+			for i := 0; i < currentRow && i < len(lines); i++ {
+				cursorPos += len(lines[i]) + 1 // +1 for newline
+			}
+			if currentRow < len(lines) {
+				cursorPos += currentCol
+			}
+			slog.Debug("Cursor calculation", "lines", lines, "calculatedPos", cursorPos)
+			
+			// The backslash we want is always immediately before the cursor
+			backslashPos := cursorPos - 1
+			slog.Debug("Shift+Enter debug", "cursorPos", cursorPos, "backslashPos", backslashPos, "currentValue", currentValue, "charAtPos", func() string {
+				if backslashPos >= 0 && backslashPos < len(currentValue) {
+					return string(currentValue[backslashPos])
+				}
+				return "invalid"
+			}())
+			
+			if backslashPos >= 0 && backslashPos < len(currentValue) && currentValue[backslashPos] == '\\' {
 				// Remove the backslash and add newline
-				newValue := currentValue[:lastBackslashPos] + "\n" + currentValue[lastBackslashPos+1:]
+				newValue := currentValue[:backslashPos] + "\n" + currentValue[backslashPos+1:]
+				slog.Debug("Replacing backslash", "oldValue", currentValue, "newValue", newValue)
 				a.editor.SetValue(newValue)
 				// Position cursor at the newline index - SetCursorPosition will move to start of next line
-				a.editor.SetCursorPosition(lastBackslashPos)
+				a.editor.SetCursorPosition(backslashPos)
 			} else {
 				// Fallback: just add newline without removing anything
 				a.lastKeyPressed = "" // Reset to avoid repeat processing
